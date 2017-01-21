@@ -72,6 +72,7 @@ def main(argv):
     import pylab as py
     from datetime import datetime
     from astropy.time import Time
+    import os
 
     cs = CloudSensor()
     images = np.loadtxt(args.file,
@@ -99,8 +100,8 @@ def main(argv):
         b_r /= np.max(b_r)
         dt = Time(datetime.strptime(cs.dateobs[itr], strtime))
         cloud_stats['mjd'][itr], cloud_stats['mean'][itr], cloud_stats['std'][itr] = dt.mjd, np.mean(b_r), np.std(b_r)
-        cloud_stats['filename'][itr] = images[itr]
-        
+        cloud_stats['filename'][itr] = os.path.basename(images[itr])
+
     np.save(args.output,
             cloud_stats)
         # py.imshow(b_dimg/r_dimg)
