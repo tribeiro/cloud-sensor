@@ -84,7 +84,8 @@ def main(argv):
 
     cloud_stats = np.zeros(len(images),dtype=[('mjd', np.float),
                                               ('mean', np.float),
-                                              ('std', np.float)])
+                                              ('std', np.float),
+                                              ('filename', 'S25')])
 
     for itr in range(len(images)):
         r_dimg = np.array(cs.images[itr][0], dtype=np.float)
@@ -98,7 +99,8 @@ def main(argv):
         b_r /= np.max(b_r)
         dt = Time(datetime.strptime(cs.dateobs[itr], strtime))
         cloud_stats['mjd'][itr], cloud_stats['mean'][itr], cloud_stats['std'][itr] = dt.mjd, np.mean(b_r), np.std(b_r)
-
+        cloud_stats['filename'][itr] = images[itr]
+        
     np.save(args.output,
             cloud_stats)
         # py.imshow(b_dimg/r_dimg)
