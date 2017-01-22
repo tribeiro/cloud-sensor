@@ -95,13 +95,17 @@ def main(argv):
         mask = np.bitwise_and(np.bitwise_and(cs.images[itr][0] > 30000,
                                              cs.images[itr][1] > 30000),
                               cs.mask)
+        # mask = np.bitwise_and(mask, r_dimg == 0)
+        # mask = np.bitwise_and(mask, b_dimg == 0)
         r_dimg[mask] = 1
         b_dimg[mask] = 0
         r_dimg[r_dimg == 0] = 1
-        
+
+        # print r_dimg[r_dimg == 0]
         b_r = b_dimg/r_dimg
         b_r = b_r[np.bitwise_not(mask)]
-        b_r /= np.max(b_r)
+        # print np.median(b_r)
+        # b_r /= np.max(b_r)
         dt = Time(datetime.strptime(cs.dateobs[itr], strtime))
         cloud_stats['mjd'][itr], cloud_stats['mean'][itr], cloud_stats['std'][itr] = dt.mjd, np.mean(b_r), np.std(b_r)
         cloud_stats['filename'][itr] = os.path.basename(images[itr])
