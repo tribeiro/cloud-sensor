@@ -90,14 +90,15 @@ def main(argv):
 
     for itr in range(len(images)):
         r_dimg = np.array(cs.images[itr][0], dtype=np.float)
-        r_dimg[cs.mask] = 1
 
         b_dimg = np.array(cs.images[itr][2], dtype=np.float)
         mask = np.bitwise_and(np.bitwise_and(cs.images[itr][0] > 30000,
                                              cs.images[itr][1] > 30000),
                               cs.mask)
+        r_dimg[mask] = 1
         b_dimg[mask] = 0
-
+        r_dimg[r_dimg == 0] = 1
+        
         b_r = b_dimg/r_dimg
         b_r = b_r[np.bitwise_not(mask)]
         b_r /= np.max(b_r)
