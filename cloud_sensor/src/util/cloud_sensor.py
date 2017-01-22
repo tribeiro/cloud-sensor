@@ -85,6 +85,7 @@ def main(argv):
 
     cloud_stats = np.zeros(len(images),dtype=[('mjd', np.float),
                                               ('mean', np.float),
+                                              ('median', np.float),
                                               ('std', np.float),
                                               ('filename', 'S25')])
 
@@ -107,7 +108,8 @@ def main(argv):
         # print np.median(b_r)
         # b_r /= np.max(b_r)
         dt = Time(datetime.strptime(cs.dateobs[itr], strtime))
-        cloud_stats['mjd'][itr], cloud_stats['mean'][itr], cloud_stats['std'][itr] = dt.mjd, np.mean(b_r), np.std(b_r)
+        cloud_stats['mjd'][itr], cloud_stats['mean'][itr], cloud_stats['mean'][itr], cloud_stats['std'][
+            itr] = dt.mjd, np.mean(b_r), np.median(b_r), np.std(b_r)
         cloud_stats['filename'][itr] = os.path.basename(images[itr])
 
     np.save(args.output,
