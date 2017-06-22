@@ -1,0 +1,146 @@
+
+import numpy as np
+from scipy import misc
+from scipy.stats import mode
+import logging
+from cloud_sensor.src.util.split_sbig_fits import split_sbig_fits
+from photutils.detection.findstars import irafstarfind
+from skimage.feature import blob_log
+
+log = logging.getLogger(__name__)
+
+class StarFinder():
+
+    mask = None
+    split_mask = None
+    images = []
+    dateobs = None
+    shape = None
+
+    def readMask(self, filename):
+        """
+
+        :param filename:
+        :return:
+        """
+        log.debug('Reading in %s ...' % filename)
+        self.mask = misc.imread(filename)
+        if self.split_mask is not None:
+            self.mask = self.mask[self.split_mask].reshape(self.shape)
+
+        log.debug('Image shape is %s ' % (self.mask.shape,))
+        self.mask = self.mask == 0
+
+    def readAllSkyImages_SBIGFITS(self,imagelist):
+        """
+
+        :return:
+        """
+        log.debug('Reading in %i images' % len(imagelist))
+        self.dateobs = np.zeros(len(imagelist),
+                                dtype='S24')
+
+        for itr, filename in enumerate(imagelist):
+            log.debug('Reading and splitting rgb channels from %s ...' % filename)
+            r, g, b, mask, self.shape, self.dateobs[itr] = split_sbig_fits(filename)
+            self.images.append((r, g, b))
+            if itr == 0:
+                self.split_mask = mask
+
+def main(argv):
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Process a list of FITS file and store MJD, median, std of the'
+                                                 'normalized b/r channels.')
+
+    parser.add_argument('-f', '--file',
+                        help='File containing list of input images to process.',
+                        type=str)
+
+    parser.add_argument('-m', '--mask',
+                        help='Horizon mask.',
+                        type=str)
+
+    parser.add_argument('-o', '--output',
+                        help='Output name. A .npy file to store the results.',
+                        type=str)
+
+    args = parser.parse_args(argv[1:])
+
+    logging.basicConfig(format='%(levelname)s:%(asctime)s::%(message)s',
+                        level=logging.DEBUG)
+
+    import pylab as py
+    from datetime import datetime
+    from astropy.time import Time
+    import os
+
+    sf = StarFinder()
+    images = np.loadtxt(args.file,
+                        dtype='S',
+                        ndmin=1)
+
+    sf.readAllSkyImages_SBIGFITS(images)
+    sf.readMask(args.mask)
+
+    strtime = '%Y-%m-%dT%H:%M:%S.%f'
+
+    cloud_stats = np.zeros(len(images),dtype=[('mjd', np.float),
+                                              ('mean', np.float),
+                                              ('median', np.float),
+                                              ('std', np.float),
+                                              ('filename', 'S25')])
+    # ax2 = py.subplot(212)
+
+    for itr in range(len(images)):
+        ax1 = py.subplot(111)
+        r_dimg = np.array(sf.images[itr][0], dtype=np.float)
+        g_dimg = np.array(sf.images[itr][1], dtype=np.float)
+        b_dimg = np.array(sf.images[itr][2], dtype=np.float)
+
+        detection_img = g_dimg #/np.median(r_dimg)+ g_dimg/np.median(g_dimg) + b_dimg/np.median(b_dimg)
+        mask = np.bitwise_and(np.bitwise_and(sf.images[itr][0] > 30000,
+                                             sf.images[itr][1] > 30000),
+                              sf.mask)
+        detection_img[detection_img > 30000] = 30000.
+        detection_img[sf.mask] = 0.
+        mean = np.mean(detection_img[np.bitwise_not(sf.mask)])
+        median = np.median(detection_img[np.bitwise_not(sf.mask)])
+        std = np.std(detection_img[np.bitwise_not(sf.mask)])
+        print median
+        # sources = irafstarfind(detection_img - median, fwhm=0.8, threshold=3.*std)
+        blobs_log = blob_log(detection_img - median, max_sigma=30, num_sigma=10, threshold=std)
+        blobs_log[:, 2] = blobs_log[:, 2] * np.sqrt(2)
+
+        print blobs_log
+
+        #
+        vmin = mean - std
+        vmax = mean + std
+        print mean,std
+        ax1.imshow(detection_img, cmap=py.get_cmap('gray'), interpolation='nearest',origin='lower', aspect='auto',
+                  vmin=vmin,
+                  vmax=vmax)
+        # py.plot(blobs_log[1],
+        #         blobs_log[0],'go')
+        for blob in blobs_log:
+                y, x, r = blob
+                c = py.Circle((x, y), r, color='g', linewidth=2, fill=False)
+                ax1.add_patch(c)
+
+        py.show()
+        # py.plot(b_dimg.flatten()/g_dimg.flatten(),g_dimg.flatten()/r_dimg.flatten(),'.')
+    # py.show()
+
+    if args.output is not None:
+        np.save(args.output,
+                cloud_stats)
+        # py.imshow(b_dimg/r_dimg)
+    #     bins = np.arange(-.01/2., 1., 0.01)
+    #     py.hist(b_r,bins = bins)
+    # py.show()
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)
