@@ -12,5 +12,5 @@ setup(
     description='Analyse images of the sky and detect clouds.',
     install_requires=['astropy',
                       ],
-    scripts=['scripts/cloud_stats']
+    scripts=['scripts/cloud_stats', 'scripts/star_finder']
 )

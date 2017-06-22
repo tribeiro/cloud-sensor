@@ -72,11 +72,13 @@ def main(argv):
     import pylab as py
     from datetime import datetime
     from astropy.time import Time
+    from astropy import coordinates, units
     import os
 
     cs = CloudSensor()
     images = np.loadtxt(args.file,
-                        dtype='S')
+                        dtype='S',
+                        ndmin=1)
 
     cs.readAllSkyImages_SBIGFITS(images)
     cs.readMask(args.mask)
@@ -87,33 +89,71 @@ def main(argv):
                                               ('mean', np.float),
                                               ('median', np.float),
                                               ('std', np.float),
+                                              ('sun_alt', np.float),
+                                              ('sun_az', np.float),
                                               ('filename', 'S25')])
+    ax1 = py.subplot(111)
+    # ax2 = py.subplot(212)
+    obs_lat = coordinates.Latitude("-30:10:04.31", unit='deg')
+    obs_long = coordinates.Longitude("-70:48:20.48", unit='deg')
+    obs_coord = coordinates.EarthLocation(lat=obs_lat, lon=obs_long, height=2700.*units.m)
 
     for itr in range(len(images)):
         r_dimg = np.array(cs.images[itr][0], dtype=np.float)
-
+        g_dimg = np.array(cs.images[itr][1], dtype=np.float)
         b_dimg = np.array(cs.images[itr][2], dtype=np.float)
+
         mask = np.bitwise_and(np.bitwise_and(cs.images[itr][0] > 30000,
                                              cs.images[itr][1] > 30000),
                               cs.mask)
         # mask = np.bitwise_and(mask, r_dimg == 0)
         # mask = np.bitwise_and(mask, b_dimg == 0)
         r_dimg[mask] = 1
+        g_dimg[mask] = 1
         b_dimg[mask] = 0
         r_dimg[r_dimg == 0] = 1
+        g_dimg[g_dimg == 0] = 1
 
         # print r_dimg[r_dimg == 0]
         b_r = b_dimg/r_dimg
         b_r = b_r[np.bitwise_not(mask)]
         # print np.median(b_r)
-        # b_r /= np.max(b_r)
+        # b_r /= np.mean(b_dimg)
         dt = Time(datetime.strptime(cs.dateobs[itr], strtime))
-        cloud_stats['mjd'][itr], cloud_stats['mean'][itr], cloud_stats['mean'][itr], cloud_stats['std'][
-            itr] = dt.mjd, np.mean(b_r), np.median(b_r), np.std(b_r)
-        cloud_stats['filename'][itr] = os.path.basename(images[itr])
+        suncoord = coordinates.get_sun(dt)
+        sun_altaz = suncoord.transform_to(coordinates.AltAz(obstime=dt, location=obs_coord))
+        # print sun_altaz.alt.deg, sun_altaz.az.deg
 
-    np.save(args.output,
-            cloud_stats)
+        cloud_stats['mjd'][itr], cloud_stats['mean'][itr], \
+        cloud_stats['median'][itr], cloud_stats['std'][itr], \
+        cloud_stats['sun_alt'][itr], cloud_stats['sun_az'][itr], \
+        cloud_stats['filename'][itr] = dt.mjd, \
+                                       np.mean(b_r), \
+                                       np.median(b_r), \
+                                       np.std(b_r), \
+                                       sun_altaz.alt.deg, \
+                                       sun_altaz.az.deg, \
+                                       os.path.basename(images[itr])
+
+        dohist = b_dimg/r_dimg
+        dohist = dohist.flatten()
+        mean = np.mean(dohist)
+        std = np.std(dohist)
+        if itr == 0:
+            bins = np.linspace(mean-3*std, mean+3*std, 200)
+            log.info('computing histogram with %i elements between %f and %f' % (len(bins),
+                                                                                 mean-std,
+                                                                                 mean+std))
+        # ax1.hist(dohist, bins=bins, alpha = 0.5)
+        # ax2.hist(r_dimg.flatten(), bins=bins, alpha = 0.5)
+        # log.info('done')
+    # py.show()
+        # py.plot(b_dimg.flatten()/g_dimg.flatten(),g_dimg.flatten()/r_dimg.flatten(),'.')
+    # py.show()
+
+    if args.output is not None:
+        np.save(args.output,
+                cloud_stats)
         # py.imshow(b_dimg/r_dimg)
     #     bins = np.arange(-.01/2., 1., 0.01)
     #     py.hist(b_r,bins = bins)
